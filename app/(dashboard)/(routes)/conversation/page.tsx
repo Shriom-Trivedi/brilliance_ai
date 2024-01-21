@@ -1,7 +1,7 @@
 'use client';
 import Heading from '@/components/heading';
 import { MessageSquare } from 'lucide-react';
-import React from 'react';
+import React, { useState } from 'react';
 import * as z from 'zod';
 import { formSchema } from './constant';
 import { useForm } from 'react-hook-form';
@@ -9,8 +9,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
+import axios from 'axios';
+import { UserAvatar } from '@/components/user-avatar';
+import { BotAvatar } from '@/components/bot-avatar';
+import { Empty } from '@/components/empty';
+import { cn } from '@/lib/utils';
 
 function ConversationPage() {
+  const router = useRouter();
+  const [messages, setMessages] = useState<any[]>([]); // FIXME: Give a better type.
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -20,7 +28,24 @@ function ConversationPage() {
 
   const isLoading = form.formState.isSubmitting;
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    console.log(values);
+    try {
+      const userMessage = {
+        role: 'user',
+        content: values.prompt,
+      };
+      const newMessages = [...messages, userMessage];
+      const response = await axios.post('/api/conversation', {
+        messages: newMessages,
+      });
+      console.log({ response });
+      setMessages((current) => [...current, userMessage, response.data]);
+
+      form.reset();
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      router.refresh();
+    }
   };
   return (
     <div>
@@ -64,12 +89,32 @@ function ConversationPage() {
                   </FormItem>
                 )}
               />
-              <Button className='col-span-12 lg:col-span-2 w-full'>Generate</Button>
+              <Button className='col-span-12 lg:col-span-2 w-full'>
+                Generate
+              </Button>
             </form>
           </Form>
         </div>
         <div className='space-y-4 mt-4'>
-            Messages Content
+          {messages.length === 0 && !isLoading && (
+            <Empty label='No conversation started.' />
+          )}
+          <div className='flex flex-col-reverse gap-y-4'>
+            {messages.map((message) => (
+              <div
+                key={message.content}
+                className={cn(
+                  'p-8 w-full flex items-start gap-x-8 rounded-lg',
+                  message.role === 'user'
+                    ? 'bg-white border border-black/10'
+                    : 'bg-muted'
+                )}
+              >
+                {message.role === 'user' ? <UserAvatar /> : <BotAvatar />}
+                <p className='text-sm'>{message.content}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
